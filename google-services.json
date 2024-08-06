@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "787044574298",
+    "project_id": "swiftescaper",
+    "storage_bucket": "swiftescaper.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:787044574298:android:06e2aaebe92890ee06e463",
+        "android_client_info": {
+          "package_name": "koren.swiftescaper"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCG-WxddW5lPctBnLFQ8LOvRKEwDen1Zes"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
