@@ -25,7 +25,7 @@ class MainViewModel:ViewModel() {
         _beacons.value = filteredBeacons.toList()
         estimatePosition(beacons)
     }
-
+    //
     fun estimatePosition(beacons: List<MinewBeacon>) {
         require(beacons.size >= 3 ) {
             "At least 3 beacons and corresponding RSSIs are required."
