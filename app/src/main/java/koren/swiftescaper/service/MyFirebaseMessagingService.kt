@@ -1,4 +1,4 @@
-package koren.swiftescaper
+package koren.swiftescaper.service
 
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -13,10 +13,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.d(TAG, "Message data payload: " + remoteMessage.data)
         }
         if (remoteMessage.notification != null) {
-            Log.d(
-                TAG, "Message Notification Body: " + remoteMessage.ti!!
-                    .body
-            )
             Log.d(
                 TAG, "Message Notification Body: " + remoteMessage.notification!!
                     .body
