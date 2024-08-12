@@ -46,24 +46,24 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        initializeFirebase()
+        initializeFirebase() // Firebase 초기화
 
-        checkPermissions()  //권한 체크
-        minewBeaconManager.startService()   //서비스 시작
+        checkPermissions()  // 권한 체크
+        minewBeaconManager.startService()   // 서비스 시작
 
         mainViewModel = ViewModelProvider(this).get(MainViewModel::class.java)
 
-        //UI
+        // UI 설정
         setContent {
             MainScreen(mainViewModel = mainViewModel)
         }
     }
 
     private fun initializeFirebase() {
-        FirebaseApp.initializeApp(this)
+        FirebaseApp.initializeApp(this) // Firebase 앱 초기화
         FirebaseMessaging.getInstance().token.addOnCompleteListener(OnCompleteListener { task ->
             if (!task.isSuccessful) {
-                Log.w(ContentValues.TAG, "Fetching FCM registration token failed", task.exception)
+                Log.w(ContentValues.TAG, "FCM 등록 토큰 가져오기 실패", task.exception)
                 return@OnCompleteListener
             }
             val token = task.result
@@ -76,9 +76,9 @@ class MainActivity : ComponentActivity() {
             override fun onUpdateBluetoothState(bluetoothState: BluetoothState?) {
                 bluetoothState?.let {
                     when (it) {
-                        BluetoothState.BluetoothStatePowerOn -> Log.d(TAG, "Bluetooth is ON")
-                        BluetoothState.BluetoothStatePowerOff -> Log.d(TAG, "Bluetooth is OFF")
-                        BluetoothState.BluetoothStateNotSupported -> Log.d(TAG, "Bluetooth is Unsupported")
+                        BluetoothState.BluetoothStatePowerOn -> Log.d(TAG, "블루투스가 켜졌습니다")
+                        BluetoothState.BluetoothStatePowerOff -> Log.d(TAG, "블루투스가 꺼졌습니다")
+                        BluetoothState.BluetoothStateNotSupported -> Log.d(TAG, "블루투스가 지원되지 않습니다")
                     }
                 }
             }
@@ -86,9 +86,9 @@ class MainActivity : ComponentActivity() {
             override fun onRangeBeacons(beacons: MutableList<MinewBeacon>?) {
                 beacons?.let {
                     if (it.isNotEmpty()) {
-                        mainViewModel.setBeacons(beacons)  //새로운 데이터로 변경
+                        mainViewModel.setBeacons(beacons)  // 새로운 비콘 데이터를 ViewModel에 설정
                     } else {
-                        Log.i(TAG, "No beacons in range")
+                        Log.i(TAG, "범위 내에 비콘이 없습니다")
                     }
                 }
             }
@@ -97,28 +97,28 @@ class MainActivity : ComponentActivity() {
                 beacons?.let {
                     if (it.isNotEmpty()) {
                         for (beacon in it) {
-                            Log.i(TAG, "Beacon appeared: ${beacon.toString()}")
-                            // Additional logic when a beacon appears
+                            Log.i(TAG, "새로운 비콘 감지됨: ${beacon.toString()}")
+                            // 비콘이 나타났을 때 추가로 처리할 로직
                         }
                     }
                 }
             }
 
             override fun onDisappearBeacons(beacons: MutableList<MinewBeacon>?) {
-                // Handle disappear beacons if needed
+                // 비콘이 사라졌을 때 처리할 로직 (필요시 구현)
             }
         })
-        minewBeaconManager.startScan()
+        minewBeaconManager.startScan() // 비콘 스캔 시작
     }
 
     private fun checkPermissions() {
         val permissions = arrayOf(
-            Manifest.permission.BLUETOOTH_CONNECT,      //API 30이상
-            Manifest.permission.BLUETOOTH_SCAN,     //API 30이상
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+            Manifest.permission.BLUETOOTH_CONNECT,      // API 30 이상에서 블루투스 연결 권한
+            Manifest.permission.BLUETOOTH_SCAN,     // API 30 이상에서 블루투스 스캔 권한
+            Manifest.permission.BLUETOOTH,          // 블루투스 권한
+            Manifest.permission.BLUETOOTH_ADMIN,    // 블루투스 관리 권한
+            Manifest.permission.ACCESS_FINE_LOCATION,   // 정확한 위치 권한
+            Manifest.permission.ACCESS_COARSE_LOCATION  // 대략적인 위치 권한
         )
         val permissionsToRequest = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
         if (permissionsToRequest.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissionsToRequest.toTypedArray(), REQUEST_CODE_PERMISSIONS)
         } else {
-            initBeaconListener()
+            initBeaconListener() // 권한이 모두 허용되었을 때 비콘 리스너 초기화
         }
     }
 
@@ -138,24 +138,26 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (grantResults.isEmpty() || grantResults.any { it != PackageManager.PERMISSION_GRANTED }) {
-                Toast.makeText(this, "Permissions required for beacon scanning", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "비콘 스캔을 위해 권한이 필요합니다", Toast.LENGTH_SHORT).show()
             } else {
-                initBeaconListener()
+                initBeaconListener() // 권한이 모두 허용되었을 때 비콘 리스너 초기화
             }
         }
     }
 }
+
 @Composable
 fun MainScreen(mainViewModel: MainViewModel) {
 
-    val x = mainViewModel.x.collectAsState()
-    val y = mainViewModel.y.collectAsState()
+    val x = mainViewModel.x.collectAsState()  // x 좌표 상태 가져오기
+    val y = mainViewModel.y.collectAsState()  // y 좌표 상태 가져오기
 
     Surface(modifier = Modifier.fillMaxSize()) {
-        Column (horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center){
-            Text(text = x.value.toString()+ "," + y.value.toString())
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(text = x.value.toString() + "," + y.value.toString())  // x, y 좌표를 화면에 표시
         }
     }
 }
-

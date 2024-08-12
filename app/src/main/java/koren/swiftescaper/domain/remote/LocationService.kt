@@ -7,8 +7,11 @@ import retrofit2.Callback
 import retrofit2.Response
 
 class LocationService {
-    fun postLocation(lat : Double, lng:Double, tunnalId:Long, userId:Long){
+
+    // 서버로 위치 정보를 전송하는 함수
+    fun postLocation(lat: Double, lng: Double, tunnelId: Long, userId: Long) {
         val locationService = getRetrofit().create(LocationInterface::class.java)
-        locationService.postLocation(lat, lng,tunnalId,userId)
+        // postLocation 메서드를 호출하여 위치 정보를 전송
+        locationService.postLocation(lat, lng, tunnelId, userId)
     }
 }
