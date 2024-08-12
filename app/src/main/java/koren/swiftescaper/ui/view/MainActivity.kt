@@ -11,19 +11,13 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
@@ -35,13 +29,20 @@ import com.minew.beaconset.MinewBeacon
 import com.minew.beaconset.MinewBeaconManager
 import com.minew.beaconset.MinewBeaconManagerListener
 import koren.swiftescaper.domain.viewmodel.MainViewModel
-import koren.swiftescaper.ui.theme.SwiftescaperTheme
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
 
 class MainActivity : ComponentActivity() {
 
     private val minewBeaconManager: MinewBeaconManager = MinewBeaconManager.getInstance(this)
     private val REQUEST_CODE_PERMISSIONS = 1001
     private lateinit var mainViewModel: MainViewModel
+
+    private lateinit var webSocket: WebSocket // WebSocket 인스턴스
+    private var isSent = false // 위치 정보가 전송되었는지 여부를 추적
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,21 +54,87 @@ class MainActivity : ComponentActivity() {
 
         mainViewModel = ViewModelProvider(this).get(MainViewModel::class.java)
 
-        // UI 설정
+        connectWebSocket()  // WebSocket 연결
+
+        // UI 설정 및 x, y 값이 정해지면 WebSocket을 통해 송신
         setContent {
             MainScreen(mainViewModel = mainViewModel)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        webSocket.close(1000, null)  // 액티비티가 파괴될 때 WebSocket 연결 종료
+    }
+
+    private fun connectWebSocket() {
+        // WebSocket 초기화 및 연결 설정
+        val client = OkHttpClient()
+        val request = Request.Builder().url("ws://서버 URL/location").build()
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+
+            override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                Log.d(TAG, "WebSocket Opened")
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                Log.d(TAG, "Received: $text")
+            }
+
+            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                Log.d(TAG, "Received: ${bytes.hex()}")
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                webSocket.close(1000, null)
+                Log.d(TAG, "WebSocket Closing: $reason")
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+                t.printStackTrace()
+                Log.e(TAG, "WebSocket Failure", t)
+            }
+        })
+    }
+
+    @Composable
+    fun MainScreen(mainViewModel: MainViewModel) {
+
+        val x by mainViewModel.x.collectAsState()  // x 좌표 상태 가져오기
+        val y by mainViewModel.y.collectAsState()  // y 좌표 상태 가져오기
+
+        // x, y 값이 정해졌고, 아직 서버로 전송되지 않았다면 전송
+        if (!isSent && x != 0.0 && y != 0.0) {
+            sendLocation(x, y) // 서버로 위치 정보 전송
+            isSent = true  // 전송 후 다시 전송되지 않도록 상태 업데이트
+        }
+
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(text = "$x, $y")  // x, y 좌표를 화면에 표시
+            }
+        }
+    }
+
+    private fun sendLocation(lat: Double, lng: Double) {
+        // 위치 데이터를 서버로 전송
+        val locationJson = "{\"lat\": $lat, \"lng\": $lng}"
+        webSocket.send(locationJson)
+        Log.d(TAG, "Location sent: $locationJson")  // 전송된 위치 로그 출력
     }
 
     private fun initializeFirebase() {
         FirebaseApp.initializeApp(this) // Firebase 앱 초기화
         FirebaseMessaging.getInstance().token.addOnCompleteListener(OnCompleteListener { task ->
             if (!task.isSuccessful) {
-                Log.w(ContentValues.TAG, "FCM 등록 토큰 가져오기 실패", task.exception)
+                Log.w(TAG, "FCM 등록 토큰 가져오기 실패", task.exception)
                 return@OnCompleteListener
             }
             val token = task.result
-            Log.d(ContentValues.TAG, token!!)
+            Log.d(TAG, token!!)
         })
     }
 
@@ -142,22 +209,6 @@ class MainActivity : ComponentActivity() {
             } else {
                 initBeaconListener() // 권한이 모두 허용되었을 때 비콘 리스너 초기화
             }
-        }
-    }
-}
-
-@Composable
-fun MainScreen(mainViewModel: MainViewModel) {
-
-    val x = mainViewModel.x.collectAsState()  // x 좌표 상태 가져오기
-    val y = mainViewModel.y.collectAsState()  // y 좌표 상태 가져오기
-
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(text = x.value.toString() + "," + y.value.toString())  // x, y 좌표를 화면에 표시
         }
     }
 }

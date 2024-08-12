@@ -71,5 +71,7 @@ class MainViewModel: ViewModel() {
 
         _x.value = kalmanX.getEstimate() // x 좌표 갱신
         _y.value = kalmanY.getEstimate() // y 좌표 갱신
+
+
     }
 }
