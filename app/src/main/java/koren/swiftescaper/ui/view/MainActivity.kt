@@ -5,6 +5,8 @@ import android.content.ContentValues
 import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.RemoteException
 import android.util.Log
 import android.widget.Toast
@@ -41,12 +43,18 @@ class MainActivity : ComponentActivity() {
     private val REQUEST_CODE_PERMISSIONS = 1001
     private lateinit var mainViewModel: MainViewModel
 
-    private lateinit var webSocket: WebSocket
     private var isSent = false // 위치 정보가 전송되었는지 여부를 추적
     private var fcmToken: String? = null // FCM 토큰을 저장할 변수
 
     // tunnelId를 받아오는 추가로직 구현 가능 -> 현재는 하드코딩 (Long 타입으로 변경)
     private var tunnelId: Long = 121L
+
+    private var webSocket: WebSocket? = null
+    private var handler: Handler? = null
+    private var runnable: Runnable? = null
+    private val period = 200L // 0.2초 간격
+
+    private var token :String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,17 +76,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        webSocket.close(1000, null)  // 액티비티가 파괴될 때 WebSocket 연결 종료
+        webSocket!!.close(1000, null)  // 액티비티가 파괴될 때 WebSocket 연결 종료
     }
 
     private fun connectWebSocket() {
         // WebSocket 초기화 및 연결 설정
         val client = OkHttpClient()
-        val request = Request.Builder().url("ws://61.252.59.35:8080/api/location/send").build() //BackEnd VM - SPRING
+        val request = Request.Builder().url("ws://10.0.2.2:8080/location/send").build() //BackEnd VM - SPRING
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
 
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 Log.d(TAG, "WebSocket Opened")
+                this@MainActivity.webSocket = webSocket;
+                startSendingMessages(0.0,0.0,1,token)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -118,11 +128,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun sendLocation(lat: Double, lng: Double, tunnelId: Long, fcmToken: String) {
-        // 위치 데이터, 터널 ID, FCM 토큰을 서버로 전송
-        val locationJson = "{\"lat\": $lat, \"lng\": $lng, \"tunnelId\": $tunnelId, \"fcmToken\": \"$fcmToken\"}"
-        webSocket.send(locationJson)
-        Log.d(TAG, "Location sent: $locationJson")  // 전송된 위치 로그 출력
+    private fun startSendingMessages(lat : Double, lng : Double, tunnelId : Long, fcmToken : String) {
+        handler = Handler(Looper.getMainLooper())
+        runnable = object : Runnable {
+            override fun run() {
+                if (webSocket != null) {
+                    val locationJson = "{\"lat\": $lat, \"lng\": $lng, \"tunnelId\": $tunnelId, \"fcmToken\": \"$fcmToken\"}"
+                    webSocket!!.send(locationJson)
+                }
+                handler!!.postDelayed(this, period) // Re-run this runnable after the specified period
+            }
+        }
+        handler!!.post(runnable!!) // Start sending messages
     }
 
     private fun initializeFirebase() {
@@ -133,7 +150,7 @@ class MainActivity : ComponentActivity() {
                 return@OnCompleteListener
             }
             // FCM 토큰을 성공적으로 가져왔을 때
-            val token = task.result
+            token = task.result
             Log.d(TAG, "FCM Token: $token")
             fcmToken = token // 토큰을 변수에 저장
         })
