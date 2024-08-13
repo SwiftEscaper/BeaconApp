@@ -41,8 +41,12 @@ class MainActivity : ComponentActivity() {
     private val REQUEST_CODE_PERMISSIONS = 1001
     private lateinit var mainViewModel: MainViewModel
 
-    private lateinit var webSocket: WebSocket // WebSocket 인스턴스
+    private lateinit var webSocket: WebSocket
     private var isSent = false // 위치 정보가 전송되었는지 여부를 추적
+    private var fcmToken: String? = null // FCM 토큰을 저장할 변수
+
+    // tunnelId를 받아오는 추가로직 구현 가능 -> 현재는 하드코딩 (Long 타입으로 변경)
+    private var tunnelId: Long = 121L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,7 +74,7 @@ class MainActivity : ComponentActivity() {
     private fun connectWebSocket() {
         // WebSocket 초기화 및 연결 설정
         val client = OkHttpClient()
-        val request = Request.Builder().url("ws://서버 URL/location").build()
+        val request = Request.Builder().url("ws://61.252.59.35:8080/api/location/send").build() //BackEnd VM - SPRING
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
 
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
@@ -103,25 +107,20 @@ class MainActivity : ComponentActivity() {
         val x by mainViewModel.x.collectAsState()  // x 좌표 상태 가져오기
         val y by mainViewModel.y.collectAsState()  // y 좌표 상태 가져오기
 
-        // x, y 값이 정해졌고, 아직 서버로 전송되지 않았다면 전송
-        if (!isSent && x != 0.0 && y != 0.0) {
-            sendLocation(x, y) // 서버로 위치 정보 전송
-            isSent = true  // 전송 후 다시 전송되지 않도록 상태 업데이트
-        }
 
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(text = "$x, $y")  // x, y 좌표를 화면에 표시
+                Text(text = "$x, $y, $tunnelId, Token: $fcmToken")  // lat,lng,tunnelId, FCM 토큰을 화면에 표시
             }
         }
     }
 
-    private fun sendLocation(lat: Double, lng: Double) {
-        // 위치 데이터를 서버로 전송
-        val locationJson = "{\"lat\": $lat, \"lng\": $lng}"
+    private fun sendLocation(lat: Double, lng: Double, tunnelId: Long, fcmToken: String) {
+        // 위치 데이터, 터널 ID, FCM 토큰을 서버로 전송
+        val locationJson = "{\"lat\": $lat, \"lng\": $lng, \"tunnelId\": $tunnelId, \"fcmToken\": \"$fcmToken\"}"
         webSocket.send(locationJson)
         Log.d(TAG, "Location sent: $locationJson")  // 전송된 위치 로그 출력
     }
@@ -133,8 +132,10 @@ class MainActivity : ComponentActivity() {
                 Log.w(TAG, "FCM 등록 토큰 가져오기 실패", task.exception)
                 return@OnCompleteListener
             }
+            // FCM 토큰을 성공적으로 가져왔을 때
             val token = task.result
-            Log.d(TAG, token!!)
+            Log.d(TAG, "FCM Token: $token")
+            fcmToken = token // 토큰을 변수에 저장
         })
     }
 
