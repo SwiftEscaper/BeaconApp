@@ -5,25 +5,20 @@ import android.content.ContentValues
 import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.os.RemoteException
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
@@ -35,13 +30,26 @@ import com.minew.beaconset.MinewBeacon
 import com.minew.beaconset.MinewBeaconManager
 import com.minew.beaconset.MinewBeaconManagerListener
 import koren.swiftescaper.domain.viewmodel.MainViewModel
-import koren.swiftescaper.ui.theme.SwiftescaperTheme
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+
 
 class MainActivity : ComponentActivity() {
 
     private val minewBeaconManager: MinewBeaconManager = MinewBeaconManager.getInstance(this)
     private val REQUEST_CODE_PERMISSIONS = 1001
     private lateinit var mainViewModel: MainViewModel
+
+    private var webSocket: WebSocket? = null
+    private var handler: Handler? = null
+    private var runnable: Runnable? = null
+    private val period = 200L // 0.2초 간격
+
+    private var token :String = ""
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +60,37 @@ class MainActivity : ComponentActivity() {
         minewBeaconManager.startService()   //서비스 시작
 
         mainViewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+
+        val client = OkHttpClient()
+
+        val request: Request = Request.Builder()
+            .url("ws://10.0.2.2:8080/location/send")
+            .build()
+
+        val listener: WebSocketListener = object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d(TAG, "WebSocket opened")
+                this@MainActivity.webSocket = webSocket
+                // Start sending messages periodically
+                startSendingMessages(0.0,0.0,1,token)
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                Log.d(TAG, "Received message: $text")
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d(TAG, "WebSocket closing: code $code reason: $reason")
+                webSocket.close(code, reason)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d(TAG, "WebSocket closed: code $code reason: $reason")
+            }
+        }
+
+        webSocket = client.newWebSocket(request, listener)
+        client.dispatcher.executorService.shutdown()
 
         //UI
         setContent {
@@ -66,7 +105,7 @@ class MainActivity : ComponentActivity() {
                 Log.w(ContentValues.TAG, "Fetching FCM registration token failed", task.exception)
                 return@OnCompleteListener
             }
-            val token = task.result
+            token = task.result
             Log.d(ContentValues.TAG, token!!)
         })
     }
@@ -143,6 +182,20 @@ class MainActivity : ComponentActivity() {
                 initBeaconListener()
             }
         }
+    }
+
+    private fun startSendingMessages(lat : Double, lng : Double, tunnelId : Long, fcmToken : String) {
+        handler = Handler(Looper.getMainLooper())
+        runnable = object : Runnable {
+            override fun run() {
+                if (webSocket != null) {
+                    val locationJson = "{\"lat\": $lat, \"lng\": $lng, \"tunnelId\": $tunnelId, \"fcmToken\": \"$fcmToken\"}"
+                    webSocket!!.send(locationJson)
+                }
+                handler!!.postDelayed(this, period) // Re-run this runnable after the specified period
+            }
+        }
+        handler!!.post(runnable!!) // Start sending messages
     }
 }
 @Composable

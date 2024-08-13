@@ -31,7 +31,7 @@ class MainViewModel:ViewModel() {
             "At least 3 beacons and corresponding RSSIs are required."
         }
 
-        val sortBeacons =beacons.sortedByDescending { it.rssi }
+        val sortBeacons =beacons.sortedBy { it.rssi }
         // 칼만 필터 초기화
         val processNoise = 0.1 // 예시 값
         val measurementNoise = 1.0 // 예시 값
@@ -43,6 +43,7 @@ class MainViewModel:ViewModel() {
         // 비콘 3개를 사용한 삼변측량
         val (beacon1, beacon2, beacon3) = sortBeacons
 
+        // 비콘 좌표
         val (x1, y1) = 0.0 to 0.0
         val (x2, y2) = 0.0 to 200.0
         val (x3, y3) = 100.0 to 50.0
