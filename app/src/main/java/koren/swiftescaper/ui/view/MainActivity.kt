@@ -11,14 +11,22 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
@@ -29,6 +37,7 @@ import com.minew.beaconset.BluetoothState
 import com.minew.beaconset.MinewBeacon
 import com.minew.beaconset.MinewBeaconManager
 import com.minew.beaconset.MinewBeaconManagerListener
+import koren.swiftescaper.domain.dto.Beacon
 import koren.swiftescaper.domain.viewmodel.MainViewModel
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -42,16 +51,13 @@ class MainActivity : ComponentActivity() {
     private val REQUEST_CODE_PERMISSIONS = 1001
     private lateinit var mainViewModel: MainViewModel
 
-    private var isSent = false // 위치 정보가 전송되었는지 여부를 추적
     private var fcmToken: String? = null // FCM 토큰을 저장할 변수
 
-    // tunnelId를 받아오는 추가로직 구현 가능 -> 현재는 하드코딩 (Long 타입으로 변경)
-    private var tunnelId: Long = 121L
 
     private var webSocket: WebSocket? = null
     private var handler: Handler? = null
     private var runnable: Runnable? = null
-    private val period = 200L // 0.2초 간격
+    private val period = 200L // 웹소켓으로 전송하는 간격
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,13 +83,13 @@ class MainActivity : ComponentActivity() {
     private fun connectWebSocket() {
         // WebSocket 초기화 및 연결 설정
         val client = OkHttpClient()
-        val request = Request.Builder().url("ws://10.0.2.2:8080/location/send").build() //BackEnd VM - SPRING
+        val request = Request.Builder().url("ws://192.168.0.10:8080/location/send").build() //BackEnd VM - SPRING
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
 
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 Log.d(TAG, "WebSocket Opened")
                 this@MainActivity.webSocket = webSocket;
-                startSendingMessages(0.0,0.0,1,fcmToken!!)
+                startSendingMessages(mainViewModel,1,fcmToken!!)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -106,32 +112,14 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    @Composable
-    fun MainScreen(mainViewModel: MainViewModel) {
-
-        val x by mainViewModel.x.collectAsState()  // x 좌표 상태 가져오기
-        val y by mainViewModel.y.collectAsState()  // y 좌표 상태 가져오기
-
-
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(text = "$x, $y, $tunnelId, Token: $fcmToken")  // lat,lng,tunnelId, FCM 토큰을 화면에 표시
-            }
-        }
-    }
-
     private fun initializeFirebase() {
         FirebaseApp.initializeApp(this) // Firebase 앱 초기화
         FirebaseMessaging.getInstance().token.addOnCompleteListener(OnCompleteListener { task ->
             if (!task.isSuccessful) {
-                Log.w(TAG, "FCM 등록 토큰 가져오기 실패", task.exception)
+                Log.w(TAG, "FCM Failure", task.exception)
                 return@OnCompleteListener
             }
             fcmToken = task.result
-            // FCM 토큰을 성공적으로 가져왔을 때
             Log.d(TAG, "FCM Token: $fcmToken")
 
             connectWebSocket()  // WebSocket 연결
@@ -153,6 +141,7 @@ class MainActivity : ComponentActivity() {
             override fun onRangeBeacons(beacons: MutableList<MinewBeacon>?) {
                 beacons?.let {
                     if (it.isNotEmpty()) {
+                        Log.d("beacons", beacons.size.toString())
                         mainViewModel.setBeacons(beacons)  // 새로운 비콘 데이터를 ViewModel에 설정
                     } else {
                         Log.i(TAG, "범위 내에 비콘이 없습니다")
@@ -212,13 +201,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startSendingMessages(lat : Double, lng : Double, tunnelId : Long, fcmToken : String) {
+    private fun startSendingMessages(mainViewModel: MainViewModel, tunnelId : Long, fcmToken : String) {
         handler = Handler(Looper.getMainLooper())
         runnable = object : Runnable {
             override fun run() {
                 if (webSocket != null) {
+                    val lat = mainViewModel.lat.value
+                    val lng = mainViewModel.lng.value
                     val locationJson = "{\"lat\": $lat, \"lng\": $lng, \"tunnelId\": $tunnelId, \"fcmToken\": \"$fcmToken\"}"
                     webSocket!!.send(locationJson)
+                    Log.d("WebSocket", "Latitude: $lat, Longitude: $lng")
                 }
                 handler!!.postDelayed(this, period) // Re-run this runnable after the specified period
             }
@@ -226,3 +218,72 @@ class MainActivity : ComponentActivity() {
         handler!!.post(runnable!!) // Start sending messages
     }
 }
+
+
+@Composable
+fun MainScreen(mainViewModel: MainViewModel) {
+
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            LocationCanvas(mainViewModel)
+        }
+    }
+}
+
+@Composable
+fun LocationCanvas(viewModel: MainViewModel) {
+    val beacons by viewModel.beacons.collectAsState()
+    val x by viewModel.lat.collectAsState()
+    val y by viewModel.lng.collectAsState()
+
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .padding(30.dp)
+        .background(Color.White),
+        contentAlignment = Alignment.Center) {
+        Text(text = x.toString() +" "+y.toString())
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+
+            Log.d("size", canvasWidth.toString()+" "+canvasHeight.toString())
+
+            // 비콘 좌표
+            val beaconCoords = listOf(
+                Beacon(0.0, 0.0),
+                Beacon(0.0, 2.0),
+                Beacon(1.0, 0.5)
+            )
+
+            // 캔버스 좌표 변환 비율 설정
+            val xScale = canvasWidth / 2.0
+            val yScale = canvasHeight / 2.0
+
+            // 비콘 좌표를 캔버스 좌표로 변환하고 사각형으로 표시
+            beaconCoords.forEach { beacon ->
+                val xPos = beacon.lat * xScale
+                val yPos = (2.0 - beacon.lng) * yScale // y축 역방향으로 변환
+
+                drawRect(
+                    color = Color.Red,
+                    topLeft = Offset(xPos.toFloat(), yPos.toFloat()),
+                    size = Size(20.dp.toPx(), 20.dp.toPx())
+                )
+            }
+            Log.d("beacons", x.toString()+" "+y.toString())
+            val currentXPos = x * xScale
+            val currentYPos = (2.0 - y) * yScale // y축 역방향으로 변환
+            // 현재 위치를 사각형으로 표시 (임시 값 사용)
+            drawRect(
+                color = Color.Blue,
+                topLeft = Offset(currentXPos.toFloat(), currentYPos.toFloat()),
+                size = Size(20.dp.toPx(), 20.dp.toPx())
+            )
+        }
+    }
+}
+

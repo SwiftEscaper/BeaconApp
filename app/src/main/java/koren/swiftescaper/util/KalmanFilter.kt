@@ -1,23 +1,29 @@
 package koren.swiftescaper.util
-
-class KalmanFilter(
-    private val processNoise: Double,
-    private val measurementNoise: Double,
-    private val estimatedError: Double
+class KalmanRssiFilter(
+    private var processNoise: Double = 0.005,
+    private var measurementNoise: Double = 20.0
 ) {
-    private var estimate: Double = 0.0
-    private var errorCovariance: Double = 1.0
+    private var isInitialized = false
+    private var predictedRSSI: Double = 0.0
+    private var errorCovariance: Double = 0.0
 
-    fun update(measurement: Double) {
-        // 예측 단계
-        val predictedEstimate = estimate
-        val predictedErrorCovariance = errorCovariance + processNoise
+    fun filtering(rssi: Double): Double {
+        val priorRSSI: Double
+        val priorErrorCovariance: Double
 
-        // 갱신 단계
-        val kalmanGain = predictedErrorCovariance / (predictedErrorCovariance + measurementNoise)
-        estimate = predictedEstimate + kalmanGain * (measurement - predictedEstimate)
-        errorCovariance = (1 - kalmanGain) * predictedErrorCovariance
+        if (!isInitialized) {
+            isInitialized = true
+            priorRSSI = rssi
+            priorErrorCovariance = 1.0
+        } else {
+            priorRSSI = predictedRSSI
+            priorErrorCovariance = errorCovariance + processNoise
+        }
+
+        val kalmanGain = priorErrorCovariance / (priorErrorCovariance + measurementNoise)
+        predictedRSSI = priorRSSI + (kalmanGain * (rssi - priorRSSI))
+        errorCovariance = (1 - kalmanGain) * priorErrorCovariance
+
+        return predictedRSSI
     }
-
-    fun getEstimate(): Double = estimate
 }
