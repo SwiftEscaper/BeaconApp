@@ -1,7 +1,7 @@
 package koren.swiftescaper.util
 class KalmanRssiFilter(
-    private var processNoise: Double = 0.005,
-    private var measurementNoise: Double = 20.0
+    private var processNoise: Double = 0.1,
+    private var measurementNoise: Double = 10.0
 ) {
     private var isInitialized = false
     private var predictedRSSI: Double = 0.0

@@ -1,7 +1,6 @@
-package koren.swiftescaper.ui.view
+package koren.swiftescaper.ui.view.main
 
 import android.Manifest
-import android.content.ContentValues
 import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -16,7 +15,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,7 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
@@ -37,8 +41,8 @@ import com.minew.beaconset.BluetoothState
 import com.minew.beaconset.MinewBeacon
 import com.minew.beaconset.MinewBeaconManager
 import com.minew.beaconset.MinewBeaconManagerListener
-import koren.swiftescaper.domain.dto.Beacon
 import koren.swiftescaper.domain.viewmodel.MainViewModel
+import koren.swiftescaper.ui.theme.BlueGray
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -52,7 +56,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var mainViewModel: MainViewModel
 
     private var fcmToken: String? = null // FCM 토큰을 저장할 변수
-
 
     private var webSocket: WebSocket? = null
     private var handler: Handler? = null
@@ -222,68 +225,29 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(mainViewModel: MainViewModel) {
-
-
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            LocationCanvas(mainViewModel)
-        }
-    }
-}
-
-@Composable
-fun LocationCanvas(viewModel: MainViewModel) {
-    val beacons by viewModel.beacons.collectAsState()
-    val x by viewModel.lat.collectAsState()
-    val y by viewModel.lng.collectAsState()
-
-    Box(modifier = Modifier
+    val x = mainViewModel.lat.collectAsState()
+    val y = mainViewModel.lng.collectAsState()
+    Surface(modifier = Modifier
         .fillMaxSize()
-        .padding(30.dp)
-        .background(Color.White),
-        contentAlignment = Alignment.Center) {
-        Text(text = x.toString() +" "+y.toString())
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val canvasWidth = size.width
-            val canvasHeight = size.height
-
-            Log.d("size", canvasWidth.toString()+" "+canvasHeight.toString())
-
-            // 비콘 좌표
-            val beaconCoords = listOf(
-                Beacon(0.0, 0.0),
-                Beacon(0.0, 2.0),
-                Beacon(1.0, 0.5)
-            )
-
-            // 캔버스 좌표 변환 비율 설정
-            val xScale = canvasWidth / 2.0
-            val yScale = canvasHeight / 2.0
-
-            // 비콘 좌표를 캔버스 좌표로 변환하고 사각형으로 표시
-            beaconCoords.forEach { beacon ->
-                val xPos = beacon.lat * xScale
-                val yPos = (2.0 - beacon.lng) * yScale // y축 역방향으로 변환
-
-                drawRect(
-                    color = Color.Red,
-                    topLeft = Offset(xPos.toFloat(), yPos.toFloat()),
-                    size = Size(20.dp.toPx(), 20.dp.toPx())
-                )
-            }
-            Log.d("beacons", x.toString()+" "+y.toString())
-            val currentXPos = x * xScale
-            val currentYPos = (2.0 - y) * yScale // y축 역방향으로 변환
-            // 현재 위치를 사각형으로 표시 (임시 값 사용)
-            drawRect(
-                color = Color.Blue,
-                topLeft = Offset(currentXPos.toFloat(), currentYPos.toFloat()),
-                size = Size(20.dp.toPx(), 20.dp.toPx())
-            )
+        .background(Color.White)) {
+        Column(
+            modifier = Modifier
+                .padding(20.dp)
+                .background(Color.White),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text ="Beacons",
+                fontSize = 20.sp,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.W600)
+            Spacer(modifier = Modifier.height(20.dp))
+            BeaconList(modifier = Modifier, viewModel = mainViewModel)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(text = "Estimated Coordination : (${x.value.toFloat()}, ${y.value.toFloat()})",
+                color = BlueGray)
+            Spacer(modifier = Modifier.height(10.dp))
+            GridScreen(viewModel = mainViewModel)
+            
         }
     }
 }
-
