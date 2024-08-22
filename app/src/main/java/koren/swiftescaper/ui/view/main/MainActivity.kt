@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
     private fun connectWebSocket() {
         // WebSocket 초기화 및 연결 설정
         val client = OkHttpClient()
-        val request = Request.Builder().url("ws://192.168.0.10:8080/location/send").build() //BackEnd VM - SPRING
+        val request = Request.Builder().url("ws://210.102.180.145:80/location/send").build() //BackEnd VM - SPRING
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
 
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
@@ -243,7 +243,7 @@ fun MainScreen(mainViewModel: MainViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
             BeaconList(modifier = Modifier, viewModel = mainViewModel)
             Spacer(modifier = Modifier.height(10.dp))
-            Text(text = "Estimated Coordination : (${x.value.toFloat()}, ${y.value.toFloat()})",
+            Text(text = "Estimated Coordination : (${y.value.toFloat()}m)",
                 color = BlueGray)
             Spacer(modifier = Modifier.height(10.dp))
             GridScreen(viewModel = mainViewModel)
