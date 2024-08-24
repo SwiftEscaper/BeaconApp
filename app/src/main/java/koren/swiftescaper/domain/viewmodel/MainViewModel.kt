@@ -24,13 +24,9 @@ class MainViewModel: ViewModel() {
     private val _brightness = MutableStateFlow<List<Brightness>>(mutableListOf())
     val brightness :StateFlow<List<Brightness>> = _brightness.asStateFlow()
 
-    // x 좌표를 상태로 관리하는 MutableStateFlow
-    private val _lat = MutableStateFlow<Double>(0.0)
-    val lat: StateFlow<Double> = _lat
-
     // y 좌표를 상태로 관리하는 MutableStateFlow
-    private val _lng = MutableStateFlow<Double>(0.0)
-    val lng: StateFlow<Double> = _lng
+    private val _pos = MutableStateFlow<Double>(0.0)
+    val pos: StateFlow<Double> = _pos
 
     // 비콘 목록을 설정하고 위치 추정을 시작하는 함수
     fun setBeacons(beacons: List<MinewBeacon>) {
@@ -81,7 +77,7 @@ class MainViewModel: ViewModel() {
         val thirdPosition = if (strongestIndex < _brightness.value.size - 1) interval * (strongestIndex + 1) else 0 // 경계 처리
 
         // 가중치 기반 위치 추정
-        _lng.value = weightStrongest * strongestPosition +
+        _pos.value = weightStrongest * strongestPosition +
                 weightSecond * secondPosition +
                 weightThird * thirdPosition
     }

@@ -92,7 +92,7 @@ class MainActivity : ComponentActivity() {
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 Log.d(TAG, "WebSocket Opened")
                 this@MainActivity.webSocket = webSocket;
-                startSendingMessages(mainViewModel,1,fcmToken!!)
+                startSendingMessages(mainViewModel,"광암터널" ,fcmToken!!)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -204,16 +204,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startSendingMessages(mainViewModel: MainViewModel, tunnelId : Long, fcmToken : String) {
+    private fun startSendingMessages(mainViewModel: MainViewModel, tunnelId : String, fcmToken : String) {
         handler = Handler(Looper.getMainLooper())
         runnable = object : Runnable {
             override fun run() {
                 if (webSocket != null) {
-                    val lat = mainViewModel.lat.value
-                    val lng = mainViewModel.lng.value
-                    val locationJson = "{\"lat\": $lat, \"lng\": $lng, \"tunnelId\": $tunnelId, \"fcmToken\": \"$fcmToken\"}"
+                    val pos = mainViewModel.pos.value
+                    val locationJson = "{\"position\": $pos, \"tunnelId\": \"$tunnelId\", \"fcmToken\": \"$fcmToken\"}"
                     webSocket!!.send(locationJson)
-                    Log.d("WebSocket", "Latitude: $lat, Longitude: $lng")
+                    Log.d("WebSocket", "Position: $pos")
                 }
                 handler!!.postDelayed(this, period) // Re-run this runnable after the specified period
             }
@@ -225,8 +224,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(mainViewModel: MainViewModel) {
-    val x = mainViewModel.lat.collectAsState()
-    val y = mainViewModel.lng.collectAsState()
+    val pos = mainViewModel.pos.collectAsState()
     Surface(modifier = Modifier
         .fillMaxSize()
         .background(Color.White)) {
@@ -243,7 +241,7 @@ fun MainScreen(mainViewModel: MainViewModel) {
             Spacer(modifier = Modifier.height(20.dp))
             BeaconList(modifier = Modifier, viewModel = mainViewModel)
             Spacer(modifier = Modifier.height(10.dp))
-            Text(text = "Estimated Coordination : (${y.value.toFloat()}m)",
+            Text(text = "Estimated Coordination : (${pos.value.toFloat()}m)",
                 color = BlueGray)
             Spacer(modifier = Modifier.height(10.dp))
             GridScreen(viewModel = mainViewModel)
