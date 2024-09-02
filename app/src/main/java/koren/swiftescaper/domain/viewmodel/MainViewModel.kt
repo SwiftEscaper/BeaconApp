@@ -44,15 +44,15 @@ class MainViewModel: ViewModel() {
             rssiToBrightness(beacon)
         }
         _brightness.value = brightnessList
-        calculateWeightedPosition(interval = 10) //m단위
+        if (brightnessList.size >0 ) {
+            calculateWeightedPosition(interval = 10) //m단위
+        }
     }
     fun rssiToBrightness(beacon: MinewBeacon): Brightness {
         val minRssi = -120
         val maxRssi = -20
-
         // 변환된 밝기 값 계산
         val brightness = ((beacon.rssi - minRssi).toDouble() / (maxRssi - minRssi) * 255).toInt()
-
         // 0에서 255 범위로 제한
         return Brightness(beacon, max(0, min(255, brightness)))
     }

@@ -3,9 +3,14 @@ package koren.swiftescaper.ui.view.main
 import android.Manifest
 import android.content.ContentValues.TAG
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.UserManager
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -48,8 +53,10 @@ import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import kotlin.math.pow
+import kotlin.math.sqrt
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), SensorEventListener {
 
     private val minewBeaconManager: MinewBeaconManager = MinewBeaconManager.getInstance(this)
     private val REQUEST_CODE_PERMISSIONS = 1001
@@ -62,8 +69,18 @@ class MainActivity : ComponentActivity() {
     private var runnable: Runnable? = null
     private val period = 200L // 웹소켓으로 전송하는 간격
 
+    private lateinit var sensorManager: SensorManager
+    private lateinit var senAccelerometer: Sensor
+    private var lastUpdate = 0L
+    private val COLLISION_THRESHOLD = 5000
+    private var lastX = 0f
+    private var lastY = 0f
+    private var lastZ = 0f
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        initSensor()
 
         initializeFirebase() // Firebase 초기화
 
@@ -83,16 +100,23 @@ class MainActivity : ComponentActivity() {
         webSocket!!.close(1000, null)  // 액티비티가 파괴될 때 WebSocket 연결 종료
     }
 
+    private fun initSensor() {
+        sensorManager = this.getSystemService(SENSOR_SERVICE) as SensorManager
+        senAccelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)!!
+        sensorManager.registerListener(this, senAccelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+    }
+
     private fun connectWebSocket() {
         // WebSocket 초기화 및 연결 설정
         val client = OkHttpClient()
-        val request = Request.Builder().url("ws://210.102.180.145:80/location/send").build() //BackEnd VM - SPRING
+        val request = Request.Builder().url("ws://210.102.180.145:80/location/send")
+            .build() //BackEnd VM - SPRING
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
 
             override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
                 Log.d(TAG, "WebSocket Opened")
                 this@MainActivity.webSocket = webSocket;
-                startSendingMessages(mainViewModel,"광암터널" ,fcmToken!!)
+                startSendingMessages(mainViewModel, "광암터널", fcmToken!!)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -108,7 +132,11 @@ class MainActivity : ComponentActivity() {
                 Log.d(TAG, "WebSocket Closing: $reason")
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+            override fun onFailure(
+                webSocket: WebSocket,
+                t: Throwable,
+                response: okhttp3.Response?
+            ) {
                 t.printStackTrace()
                 Log.e(TAG, "WebSocket Failure", t)
             }
@@ -143,7 +171,7 @@ class MainActivity : ComponentActivity() {
 
             override fun onRangeBeacons(beacons: MutableList<MinewBeacon>?) {
                 beacons?.let {
-                    if (it.isNotEmpty()) {
+                    if (it.size > 0) {
                         Log.d("beacons", beacons.size.toString())
                         mainViewModel.setBeacons(beacons)  // 새로운 비콘 데이터를 ViewModel에 설정
                     } else {
@@ -183,7 +211,11 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (permissionsToRequest.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, permissionsToRequest.toTypedArray(), REQUEST_CODE_PERMISSIONS)
+            ActivityCompat.requestPermissions(
+                this,
+                permissionsToRequest.toTypedArray(),
+                REQUEST_CODE_PERMISSIONS
+            )
         } else {
             initBeaconListener() // 권한이 모두 허용되었을 때 비콘 리스너 초기화
         }
@@ -204,20 +236,65 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startSendingMessages(mainViewModel: MainViewModel, tunnelId : String, fcmToken : String) {
+    private fun startSendingMessages(
+        mainViewModel: MainViewModel,
+        tunnelId: String,
+        fcmToken: String
+    ) {
         handler = Handler(Looper.getMainLooper())
         runnable = object : Runnable {
             override fun run() {
                 if (webSocket != null) {
                     val pos = mainViewModel.pos.value
-                    val locationJson = "{\"position\": $pos, \"tunnelId\": \"$tunnelId\", \"fcmToken\": \"$fcmToken\"}"
+                    val locationJson =
+                        "{\"position\": $pos, \"tunnelId\": \"$tunnelId\", \"fcmToken\": \"$fcmToken\"}"
                     webSocket!!.send(locationJson)
                     Log.d("WebSocket", "Position: $pos")
                 }
-                handler!!.postDelayed(this, period) // Re-run this runnable after the specified period
+                handler!!.postDelayed(
+                    this,
+                    period
+                ) // Re-run this runnable after the specified period
             }
         }
         handler!!.post(runnable!!) // Start sending messages
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        val sensor = event!!.sensor
+        if (sensor.type == Sensor.TYPE_LINEAR_ACCELERATION) {
+            val x = event.values[0]
+            val y = event.values[1]
+            val z = event.values[2]
+
+            Log.d(TAG, "Collision detected : " + x.toString() +" "+y.toString()+" "+z.toString())
+
+            val curTime = System.currentTimeMillis()
+            if (curTime - lastUpdate > 100) {
+                val diffTime = (curTime - lastUpdate)
+                lastUpdate = curTime
+
+                val collisionDetect = sqrt(
+                    (z - lastZ).toDouble().pow(2.0) * 100 +
+                            (x - lastX).toDouble().pow(2.0) * 10 +
+                            (y - lastY).toDouble().pow(2.0) * 10
+                ) / diffTime * 10000
+
+                if (collisionDetect > COLLISION_THRESHOLD) {
+                    Toast.makeText(this, "충돌!!", Toast.LENGTH_SHORT).show()
+                    //webSocket?.send("{\"collision\": true, \"timestamp\": $curTime}")
+                    //HPC 전송할 예정... collision 값, timestamp, 터널명
+                    Log.d(TAG, "Collision detected and reported.")
+                }
+
+                lastX = x
+                lastY = y
+                lastZ = z
+            }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
     }
 }
 
