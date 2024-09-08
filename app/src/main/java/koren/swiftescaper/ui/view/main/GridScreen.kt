@@ -20,7 +20,6 @@ import koren.swiftescaper.ui.theme.BlueGray
 fun GridScreen(viewModel: MainViewModel) {
     // brightness 값을 collect하여 UI에 적용
     val brightnessList by viewModel.brightness.collectAsState()
-
         Column {
             for (index in 0 until 10) {
                 val brightness = if (index < brightnessList.size) brightnessList.get(index).brightness else 0
